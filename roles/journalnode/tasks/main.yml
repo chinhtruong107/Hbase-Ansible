@@ -11,11 +11,14 @@
     remote_src: yes
 
 - name: Copy core-site.xml
-  copy:
-    src: core-site.xml
+  template:
+    src: core-site.xml.j2
     dest: /opt/hadoop/etc/hadoop/core-site.xml
 
 - name: Copy hdfs-site.xml
-  copy:
-    src: hdfs-site.xml
+  template:
+    src: hdfs-site.xml.j2
     dest: /opt/hadoop/etc/hadoop/hdfs-site.xml
+
+- name: Start JournalNode
+  shell: /opt/hadoop/bin/hdfs --daemon start journalnode
