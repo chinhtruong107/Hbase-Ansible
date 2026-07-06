@@ -1,2 +1,20 @@
 ansible_user: ubuntu
-ansible_ssh_private_key_file: ~/.ssh/redis-cluster.pem
+ansible_ssh_private_key_file: ~/.ssh/hbase.pem
+
+hosts_entries: |
+  172.31.34.199 zk1
+  172.31.45.85 zk2
+  172.31.41.44 zk3
+  172.31.37.50 nn1
+  172.31.35.247 nn2
+  172.31.23.79 jn1
+  172.31.22.210 jn2
+  172.31.17.216 jn3
+  172.31.35.51 dn1
+  172.31.34.67 dn2
+  172.31.34.197 dn3
+  172.31.37.245 hm1
+  172.31.39.222 hm2
+  172.31.34.150 rs1
+  172.31.42.203 rs2
+  172.31.42.236 rs3
