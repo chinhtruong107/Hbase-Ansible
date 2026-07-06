@@ -21,6 +21,11 @@
     content: "{{ zk_id }}"
     dest: /data/zookeeper/myid
 
+- name: Rename extracted folder to zookeeper
+  command: mv /opt/apache-zookeeper-3.8.6-bin /opt/zookeeper
+  args:
+    creates: /opt/zookeeper
+
 - name: Copy zoo.cfg
   template:
     src: zoo.cfg.j2
