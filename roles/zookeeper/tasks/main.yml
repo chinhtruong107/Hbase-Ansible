@@ -33,3 +33,5 @@
 
 - name: Start ZooKeeper
   shell: /opt/zookeeper/bin/zkServer.sh start
+  register: zk_start
+  failed_when: zk_start.rc != 0 and "already running" not in zk_start.stdout
