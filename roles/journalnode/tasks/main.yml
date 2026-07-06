@@ -29,3 +29,5 @@
 
 - name: Start JournalNode
   shell: /opt/hadoop/bin/hdfs --daemon start journalnode
+  register: jn_start
+  failed_when: jn_start.rc != 0 and "is running" not in jn_start.stderr
