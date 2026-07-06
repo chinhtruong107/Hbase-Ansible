@@ -29,7 +29,7 @@
 
 - name: Format NameNode (chỉ chạy 1 lần trên node Active)
   shell: /opt/hadoop/bin/hdfs namenode -format
-  when: is_first_namenode
+  when: is_first_namenode | bool
 
 - name: Start NameNode
   shell: /opt/hadoop/bin/hdfs --daemon start namenode
