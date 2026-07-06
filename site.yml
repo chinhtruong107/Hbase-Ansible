@@ -1,0 +1,49 @@
+---
+# Cài đặt cơ bản cho tất cả các node
+- name: Cài đặt chung
+  hosts: all
+  become: yes
+  roles:
+    - common
+
+# Cài ZooKeeper
+- name: Cài ZooKeeper
+  hosts: zookeeper
+  become: yes
+  roles:
+    - zookeeper
+
+# Cài JournalNode
+- name: Cài JournalNode
+  hosts: journalnode
+  become: yes
+  roles:
+    - journalnode
+
+# Cài NameNode
+- name: Cài NameNode
+  hosts: namenode
+  become: yes
+  roles:
+    - namenode
+
+# Cài DataNode
+- name: Cài DataNode
+  hosts: datanode
+  become: yes
+  roles:
+    - datanode
+
+# Cài HBase Master
+- name: Cài HBase Master
+  hosts: hbase_master
+  become: yes
+  roles:
+    - hbase_master
+
+# Cài HBase RegionServer
+- name: Cài HBase RegionServer
+  hosts: hbase_regionserver
+  become: yes
+  roles:
+    - hbase_regionserver
