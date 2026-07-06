@@ -1,6 +1,6 @@
 ---
 # Install đặt cơ bản cho tất cả các node
-- name: Install đặt chung
+- name: Install common
   hosts: all
   become: yes
   roles:
