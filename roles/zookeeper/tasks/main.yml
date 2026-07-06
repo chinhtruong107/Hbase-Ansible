@@ -1,0 +1,30 @@
+---
+- name: Download ZooKeeper
+  get_url:
+    url: https://downloads.apache.org/zookeeper/zookeeper-3.8.4/apache-zookeeper-3.8.4-bin.tar.gz
+    dest: /tmp/zookeeper.tar.gz
+
+- name: Extract ZooKeeper
+  unarchive:
+    src: /tmp/zookeeper.tar.gz
+    dest: /opt/
+    remote_src: yes
+
+- name: Create data directory
+  file:
+    path: /data/zookeeper
+    state: directory
+    owner: hadoop
+
+- name: Create myid file
+  copy:
+    content: "{{ zk_id }}"
+    dest: /data/zookeeper/myid
+
+- name: Copy zoo.cfg
+  template:
+    src: zoo.cfg.j2
+    dest: /opt/zookeeper/conf/zoo.cfg
+
+- name: Start ZooKeeper
+  shell: /opt/zookeeper/bin/zkServer.sh start

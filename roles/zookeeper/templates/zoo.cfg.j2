@@ -1,0 +1,21 @@
+# Thời gian mỗi "nhịp" (tick) tính bằng ms, ZooKeeper dùng cái này để đo thời gian timeout
+tickTime=2000
+
+# Thư mục lưu dữ liệu (đã tạo ở task trước, chứa file myid)
+dataDir=/data/zookeeper
+
+# Port để client (Hadoop, HBase) kết nối vào
+clientPort=2181
+
+# Số tick tối đa để node kết nối lần đầu vào server chính (Leader)
+initLimit=10
+
+# Số tick tối đa giữa các lần đồng bộ (nếu quá thời gian này coi như node chết)
+syncLimit=5
+
+# Khai báo danh sách 3 node ZooKeeper
+# Cú pháp: server.<id>=<hostname>:<port giao tiếp nội bộ>:<port bầu chọn leader>
+# id phải trùng với nội dung file myid trên từng node
+server.1=zk1:2888:3888
+server.2=zk2:2888:3888
+server.3=zk3:2888:3888

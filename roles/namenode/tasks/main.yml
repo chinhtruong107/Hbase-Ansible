@@ -1,0 +1,31 @@
+---
+- name: Download Hadoop
+  get_url:
+    url: https://downloads.apache.org/hadoop/common/hadoop-3.3.6/hadoop-3.3.6.tar.gz
+    dest: /tmp/hadoop.tar.gz
+
+- name: Extract Hadoop
+  unarchive:
+    src: /tmp/hadoop.tar.gz
+    dest: /opt/
+    remote_src: yes
+
+- name: Copy core-site.xml
+  copy:
+    src: core-site.xml
+    dest: /opt/hadoop/etc/hadoop/core-site.xml
+
+- name: Copy hdfs-site.xml
+  copy:
+    src: hdfs-site.xml
+    dest: /opt/hadoop/etc/hadoop/hdfs-site.xml
+
+- name: Format NameNode (chỉ chạy 1 lần trên node Active)
+  shell: /opt/hadoop/bin/hdfs namenode -format
+  when: is_first_namenode
+
+- name: Start NameNode
+  shell: /opt/hadoop/bin/hdfs --daemon start namenode
+
+- name: Start ZKFC
+  shell: /opt/hadoop/bin/hdfs --daemon start zkfc

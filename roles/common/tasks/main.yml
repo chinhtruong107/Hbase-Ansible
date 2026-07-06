@@ -1,0 +1,25 @@
+---
+- name: Install Java
+  apt:
+    name: openjdk-11-jdk
+    state: present
+    update_cache: yes
+
+- name: Create hadoop user
+  user:
+    name: hadoop
+    shell: /bin/bash
+    create_home: yes
+
+- name: Set JAVA_HOME in profile
+  lineinfile:
+    path: /etc/environment
+    line: 'JAVA_HOME="/usr/lib/jvm/java-11-openjdk-amd64"'
+
+- name: Disable swap
+  command: swapoff -a
+
+- name: Update /etc/hosts with cluster nodes
+  blockinfile:
+    path: /etc/hosts
+    block: "{{ hosts_entries }}"

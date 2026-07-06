@@ -1,0 +1,20 @@
+---
+- name: Download HBase
+  get_url:
+    url: https://downloads.apache.org/hbase/2.5.8/hbase-2.5.8-bin.tar.gz
+    dest: /tmp/hbase.tar.gz
+
+- name: Extract HBase
+  unarchive:
+    src: /tmp/hbase.tar.gz
+    dest: /opt/
+    remote_src: yes
+
+- name: Copy hbase-site.xml
+  copy:
+    src: hbase-site.xml
+    dest: /opt/hbase/conf/hbase-site.xml
+
+- name: Start HMaster
+  shell: /opt/hbase/bin/hbase-daemon.sh start master
+  when: is_master
