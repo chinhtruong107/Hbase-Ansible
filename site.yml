@@ -1,48 +1,48 @@
 ---
-# Cài đặt cơ bản cho tất cả các node
-- name: Cài đặt chung
+# Install đặt cơ bản cho tất cả các node
+- name: Install đặt chung
   hosts: all
   become: yes
   roles:
     - common
 
-# Cài ZooKeeper
-- name: Cài ZooKeeper
+# Install ZooKeeper
+- name: Install ZooKeeper
   hosts: zookeeper
   become: yes
   roles:
     - zookeeper
 
-# Cài JournalNode
-- name: Cài JournalNode
+# Install JournalNode
+- name: Install JournalNode
   hosts: journalnode
   become: yes
   roles:
     - journalnode
 
-# Cài NameNode
-- name: Cài NameNode
+# Install NameNode
+- name: Install NameNode
   hosts: namenode
   become: yes
   roles:
     - namenode
 
-# Cài DataNode
-- name: Cài DataNode
+# Install DataNode
+- name: Install DataNode
   hosts: datanode
   become: yes
   roles:
     - datanode
 
-# Cài HBase Master
-- name: Cài HBase Master
+# Install HBase Master
+- name: Install HBase Master
   hosts: hbase_master
   become: yes
   roles:
     - hbase_master
 
-# Cài HBase RegionServer
-- name: Cài HBase RegionServer
+# Install HBase RegionServer
+- name: Install HBase RegionServer
   hosts: hbase_regionserver
   become: yes
   roles:
