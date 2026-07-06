@@ -1,14 +1,18 @@
 ---
-- name: Download Hadoop
+- name: Download ZooKeeper
   get_url:
-    url: https://downloads.apache.org/hadoop/common/hadoop-3.3.6/hadoop-3.3.6.tar.gz
-    dest: /tmp/hadoop.tar.gz
+    url: https://downloads.apache.org/zookeeper/zookeeper-3.8.6/apache-zookeeper-3.8.6-bin.tar.gz
+    dest: /tmp/zookeeper.tar.gz
+  args:
+    creates: /tmp/zookeeper.tar.gz
 
-- name: Extract Hadoop
+- name: Extract ZooKeeper
   unarchive:
-    src: /tmp/hadoop.tar.gz
+    src: /tmp/zookeeper.tar.gz
     dest: /opt/
     remote_src: yes
+  args:
+    creates: /opt/apache-zookeeper-3.8.6-bin
 
 - name: Rename extracted folder to hadoop
   command: mv /opt/hadoop-3.3.6 /opt/hadoop
