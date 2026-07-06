@@ -10,6 +10,11 @@
     dest: /opt/
     remote_src: yes
 
+- name: Rename extracted folder to hadoop
+  command: mv /opt/hadoop-3.3.6 /opt/hadoop
+  args:
+    creates: /opt/hadoop
+    
 - name: Copy core-site.xml
   template:
     src: core-site.xml.j2
