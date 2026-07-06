@@ -3,8 +3,6 @@
   get_url:
     url: https://downloads.apache.org/zookeeper/zookeeper-3.8.6/apache-zookeeper-3.8.6-bin.tar.gz
     dest: /tmp/zookeeper.tar.gz
-  args:
-    creates: /tmp/zookeeper.tar.gz
 
 - name: Extract ZooKeeper
   unarchive:
