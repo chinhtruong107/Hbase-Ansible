@@ -15,6 +15,11 @@
   args:
     creates: /opt/hbase
 
+- name: Copy hbase-site.xml
+  template:
+    src: hbase-site.xml.j2
+    dest: /opt/hbase/conf/hbase-site.xml
+
 - name: Copy core-site.xml vào HBase
   template:
     src: core-site.xml.j2
