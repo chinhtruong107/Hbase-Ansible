@@ -16,8 +16,8 @@
     creates: /opt/hbase
 
 - name: Copy hbase-site.xml
-  copy:
-    src: hbase-site.xml
+  template:
+    src: hbase-site.xml.j2
     dest: /opt/hbase/conf/hbase-site.xml
 
 - name: Start HMaster
