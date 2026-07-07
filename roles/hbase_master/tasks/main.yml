@@ -4,16 +4,16 @@
     url: https://downloads.apache.org/hbase/2.5.15/hbase-2.5.15-hadoop3-bin.tar.gz
     dest: /tmp/hbase.tar.gz
 
-- name: Rename extracted folder to hbase
-  command: mv /opt/hbase-2.5.15-hadoop3 /opt/hbase
-  args:
-    creates: /opt/hbase
-
 - name: Extract HBase
   unarchive:
     src: /tmp/hbase.tar.gz
     dest: /opt/
     remote_src: yes
+
+- name: Rename extracted folder to hbase
+  command: mv /opt/hbase-2.5.15-hadoop3 /opt/hbase
+  args:
+    creates: /opt/hbase
 
 - name: Copy hbase-site.xml
   copy:
