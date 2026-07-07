@@ -26,3 +26,8 @@
   template:
     src: hdfs-site.xml.j2
     dest: /opt/hadoop/etc/hadoop/hdfs-site.xml
+
+- name: Start DataNode
+  shell: /opt/hadoop/bin/hdfs --daemon start datanode
+  register: dn_start
+  failed_when: dn_start.rc != 0 and "is running" not in dn_start.stderr
