@@ -22,4 +22,5 @@
 
 - name: Start HMaster
   shell: /opt/hbase/bin/hbase-daemon.sh start master
-  when: is_master
+  register: master_start
+  failed_when: master_start.rc != 0 and "already running" not in master_start.stdout

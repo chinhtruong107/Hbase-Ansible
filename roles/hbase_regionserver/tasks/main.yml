@@ -22,4 +22,5 @@
 
 - name: Start HRegionServer
   shell: /opt/hbase/bin/hbase-daemon.sh start regionserver
-  when: is_regionserver
+  register: regionserver_start
+  failed_when: regionserver_start.rc != 0 and "already running" not in regionserver_start.stdout
