@@ -30,6 +30,8 @@
 - name: Format NameNode (chỉ chạy 1 lần trên node Active)
   shell: /opt/hadoop/bin/hdfs namenode -format -force
   when: is_first_namenode | bool
+  register: format_result
+  failed_when: format_result.rc != 0 and "is running" not in format_result.stderr
 
 - name: Start NameNode
   shell: /opt/hadoop/bin/hdfs --daemon start namenode
