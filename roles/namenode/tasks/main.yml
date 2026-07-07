@@ -35,6 +35,8 @@
 
 - name: Start NameNode
   shell: /opt/hadoop/bin/hdfs --daemon start namenode
+  register: nn_start
+  failed_when: nn_start.rc != 0 and "is running" not in nn_start.stderr
 
 - name: Start ZKFC
   shell: /opt/hadoop/bin/hdfs --daemon start zkfc
