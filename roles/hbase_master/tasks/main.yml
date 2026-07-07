@@ -15,10 +15,15 @@
   args:
     creates: /opt/hbase
 
-- name: Copy hbase-site.xml
+- name: Copy core-site.xml vào HBase
   template:
-    src: hbase-site.xml.j2
-    dest: /opt/hbase/conf/hbase-site.xml
+    src: core-site.xml.j2
+    dest: /opt/hbase/conf/core-site.xml
+
+- name: Copy hdfs-site.xml vào HBase
+  template:
+    src: hdfs-site.xml.j2
+    dest: /opt/hbase/conf/hdfs-site.xml
 
 - name: Start HMaster
   shell: /opt/hbase/bin/hbase-daemon.sh start master
