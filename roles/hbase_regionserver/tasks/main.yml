@@ -1,7 +1,7 @@
 ---
 - name: Download HBase
   get_url:
-    url: https://downloads.apache.org/hbase/2.5.14/hbase-2.5.14-hadoop3-bin.tar.gz
+    url: https://downloads.apache.org/hbase/2.5.13/hbase-2.5.13-hadoop3-bin.tar.gz
     dest: /tmp/hbase.tar.gz
 
 - name: Extract HBase
@@ -15,6 +15,6 @@
     src: hbase-site.xml
     dest: /opt/hbase/conf/hbase-site.xml
 
-- name: Start HMaster
-  shell: /opt/hbase/bin/hbase-daemon.sh start master
-  when: is_master
+- name: Start HRegionServer
+  shell: /opt/hbase/bin/hbase-daemon.sh start regionserver
+  when: is_regionserver

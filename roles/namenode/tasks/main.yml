@@ -38,5 +38,13 @@
   register: nn_start
   failed_when: nn_start.rc != 0 and "is running" not in nn_start.stderr
 
+- name: Format ZKFC in ZooKeeper (chỉ chạy 1 lần)
+  shell: /opt/hadoop/bin/hdfs zkfc -formatZK -nonInteractive
+  when: is_first_namenode | bool
+  register: zkfc_format
+  failed_when: zkfc_format.rc != 0 and "already exists" not in zkfc_format.stderr
+
 - name: Start ZKFC
   shell: /opt/hadoop/bin/hdfs --daemon start zkfc
+  register: zkfc_start
+  failed_when: zkfc_start.rc != 0 and "is running" not in zkfc_start.stderr
