@@ -1,7 +1,7 @@
 ---
 - name: Download HBase
   get_url:
-    url: https://downloads.apache.org/hbase/stable/hbase-hadoop3-bin.tar.gz
+    url: https://downloads.apache.org/hbase/stable/hbase-2.5.13-hadoop3-bin.tar.gz
     dest: /tmp/hbase.tar.gz
 
 - name: Extract HBase
