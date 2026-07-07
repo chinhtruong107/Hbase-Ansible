@@ -1,16 +1,16 @@
 ---
-- name: Download ZooKeeper
+- name: Download Hadoop
   get_url:
-    url: https://downloads.apache.org/zookeeper/zookeeper-3.8.6/apache-zookeeper-3.8.6-bin.tar.gz
-    dest: /tmp/zookeeper.tar.gz
+    url: https://downloads.apache.org/hadoop/common/hadoop-3.3.6/hadoop-3.3.6.tar.gz
+    dest: /tmp/hadoop.tar.gz
 
-- name: Extract ZooKeeper
+- name: Extract Hadoop
   unarchive:
-    src: /tmp/zookeeper.tar.gz
+    src: /tmp/hadoop.tar.gz
     dest: /opt/
     remote_src: yes
   args:
-    creates: /opt/apache-zookeeper-3.8.6-bin
+    creates: /opt/hadoop-3.3.6
 
 - name: Rename extracted folder to hadoop
   command: mv /opt/hadoop-3.3.6 /opt/hadoop
@@ -28,7 +28,7 @@
     dest: /opt/hadoop/etc/hadoop/hdfs-site.xml
 
 - name: Format NameNode (chỉ chạy 1 lần trên node Active)
-  shell: /opt/hadoop/bin/hdfs namenode -format
+  shell: /opt/hadoop/bin/hdfs namenode -format -force
   when: is_first_namenode | bool
 
 - name: Start NameNode
