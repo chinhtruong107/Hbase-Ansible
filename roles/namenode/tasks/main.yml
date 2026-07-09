@@ -42,7 +42,7 @@
   shell: /opt/hadoop/bin/hdfs zkfc -formatZK -nonInteractive
   when: is_first_namenode | bool
   register: zkfc_format
-  failed_when: zkfc_format.rc != 0 and "already exists" not in zkfc_format.stderr and "is running" not in zkfc_format.stderr
+  failed_when: zkfc_format.rc != 0 and zkfc_format.rc != 2
 
 - name: Start ZKFC
   shell: /opt/hadoop/bin/hdfs --daemon start zkfc
