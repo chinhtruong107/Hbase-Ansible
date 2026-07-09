@@ -1,4 +1,16 @@
 ---
+- name: "[Test1] Kiểm tra cả 2 NameNode đang chạy trước khi test"
+  shell: jps | grep NameNode
+  delegate_to: "{{ item }}"
+  become: yes
+  loop:
+    - nn1
+    - nn2
+  register: nn_precheck
+  failed_when: "'NameNode' not in nn_precheck.stdout"
+
+- debug: var=nn_precheck.results
+
 - name: "[Test1] Xác định NameNode active hiện tại"
   command: /opt/hadoop/bin/hdfs haadmin -getAllServiceState
   delegate_to: nn1
