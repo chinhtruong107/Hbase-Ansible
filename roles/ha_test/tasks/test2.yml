@@ -1,0 +1,38 @@
+---
+- name: "[Test2] Kiểm tra ZKFC đang chạy trên nn1"
+  shell: jps | grep DFSZKFailoverController
+  delegate_to: nn1
+  become: yes
+  register: zkfc_before
+
+- debug: var=zkfc_before.stdout_lines
+
+- name: "[Test2] Dừng ZKFC trên nn1"
+  command: /opt/hadoop/bin/hdfs --daemon stop zkfc
+  delegate_to: nn1
+  become: yes
+
+- name: "[Test2] Đợi failover"
+  pause:
+    seconds: 15
+
+- name: "[Test2] Kiểm tra trạng thái NameNode sau khi mất ZKFC"
+  command: /opt/hadoop/bin/hdfs haadmin -getAllServiceState
+  delegate_to: nn2
+  become: yes
+  register: state_after_zkfc_down
+
+- debug: var=state_after_zkfc_down.stdout_lines
+
+- name: "[Test2] Phục hồi ZKFC trên nn1"
+  command: /opt/hadoop/bin/hdfs --daemon start zkfc
+  delegate_to: nn1
+  become: yes
+
+- name: "[Test2] Xác nhận ZKFC đã chạy lại"
+  shell: jps | grep DFSZKFailoverController
+  delegate_to: nn1
+  become: yes
+  register: zkfc_after
+
+- debug: var=zkfc_after.stdout_lines

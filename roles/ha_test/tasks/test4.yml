@@ -1,0 +1,30 @@
+---
+- name: "[Test4] Dừng ZooKeeper trên zk1"
+  command: /opt/zookeeper/bin/zkServer.sh stop
+  delegate_to: zk1
+  become: yes
+
+- name: "[Test4] Đợi cluster ổn định lại"
+  pause:
+    seconds: 10
+
+- name: "[Test4] Kiểm tra HDFS HA vẫn hoạt động"
+  command: /opt/hadoop/bin/hdfs haadmin -getAllServiceState
+  delegate_to: nn1
+  become: yes
+  register: hdfs_state
+
+- debug: var=hdfs_state.stdout_lines
+
+- name: "[Test4] Kiểm tra HBase status"
+  shell: /opt/hbase/bin/hbase shell <<< 'status'
+  delegate_to: hm1
+  become: yes
+  register: hbase_state
+
+- debug: var=hbase_state.stdout_lines
+
+- name: "[Test4] Phục hồi ZooKeeper zk1"
+  command: /opt/zookeeper/bin/zkServer.sh start
+  delegate_to: zk1
+  become: yes

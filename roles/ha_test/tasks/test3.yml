@@ -1,0 +1,34 @@
+---
+- name: "[Test3] Dừng JournalNode trên jn1"
+  command: /opt/hadoop/bin/hdfs --daemon stop journalnode
+  delegate_to: jn1
+  become: yes
+
+- name: "[Test3] Thử tạo thư mục mới trên HDFS (kiểm tra quorum 2/3 còn đủ)"
+  command: /opt/hadoop/bin/hdfs dfs -mkdir -p /ha_test_jn
+  delegate_to: nn1
+  become: yes
+  register: mkdir_result
+
+- debug: var=mkdir_result
+
+- name: "[Test3] Kiểm tra HDFS vẫn liệt kê được"
+  command: /opt/hadoop/bin/hdfs dfs -ls /
+  delegate_to: nn1
+  become: yes
+  register: ls_result
+
+- debug: var=ls_result.stdout_lines
+
+- name: "[Test3] Kiểm tra trạng thái HA vẫn ổn"
+  command: /opt/hadoop/bin/hdfs haadmin -getAllServiceState
+  delegate_to: nn1
+  become: yes
+  register: ha_state
+
+- debug: var=ha_state.stdout_lines
+
+- name: "[Test3] Phục hồi JournalNode jn1"
+  command: /opt/hadoop/bin/hdfs --daemon start journalnode
+  delegate_to: jn1
+  become: yes

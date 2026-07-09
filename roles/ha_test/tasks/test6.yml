@@ -1,0 +1,40 @@
+---
+- name: "[Test6] Dừng RegionServer trên rs1"
+  shell: /opt/hbase/bin/hbase-daemon.sh stop regionserver
+  delegate_to: rs1
+  become: yes
+
+- name: "[Test6] Dừng DataNode trên dn1"
+  command: /opt/hadoop/bin/hdfs --daemon stop datanode
+  delegate_to: dn1
+  become: yes
+
+- name: "[Test6] Đợi cluster nhận diện mất node"
+  pause:
+    seconds: 15
+
+- name: "[Test6] Kiểm tra số DataNode còn sống"
+  command: /opt/hadoop/bin/hdfs dfsadmin -report
+  delegate_to: nn1
+  become: yes
+  register: dn_report
+
+- debug: var=dn_report.stdout_lines
+
+- name: "[Test6] Kiểm tra HBase status"
+  shell: /opt/hbase/bin/hbase shell <<< 'status'
+  delegate_to: hm1
+  become: yes
+  register: hbase_status
+
+- debug: var=hbase_status.stdout_lines
+
+- name: "[Test6] Phục hồi DataNode dn1"
+  command: /opt/hadoop/bin/hdfs --daemon start datanode
+  delegate_to: dn1
+  become: yes
+
+- name: "[Test6] Phục hồi RegionServer rs1"
+  shell: /opt/hbase/bin/hbase-daemon.sh start regionserver
+  delegate_to: rs1
+  become: yes

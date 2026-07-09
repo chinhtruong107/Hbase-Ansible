@@ -1,0 +1,33 @@
+---
+- name: "[Test5] Kiểm tra HMaster baseline (hm1, hm2)"
+  shell: jps | grep HMaster
+  delegate_to: "{{ item }}"
+  become: yes
+  loop:
+    - hm1
+    - hm2
+  register: hmaster_baseline
+
+- debug: var=hmaster_baseline.results
+
+- name: "[Test5] Dừng HMaster active trên hm1"
+  shell: /opt/hbase/bin/hbase-daemon.sh stop master
+  delegate_to: hm1
+  become: yes
+
+- name: "[Test5] Đợi failover"
+  pause:
+    seconds: 15
+
+- name: "[Test5] Kiểm tra hm2 đã lên active"
+  shell: /opt/hbase/bin/hbase shell <<< 'status'
+  delegate_to: hm2
+  become: yes
+  register: hbase_status_after
+
+- debug: var=hbase_status_after.stdout_lines
+
+- name: "[Test5] Phục hồi HMaster trên hm1"
+  shell: /opt/hbase/bin/hbase-daemon.sh start master
+  delegate_to: hm1
+  become: yes
