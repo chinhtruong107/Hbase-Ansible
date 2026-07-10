@@ -1,62 +1,50 @@
 ---
-- name: "[Test1] Kiểm tra cả 2 NameNode đang chạy trước khi test"
-  shell: jps | grep NameNode
-  delegate_to: "{{ item }}"
-  become: yes
-  loop:
-    - nn1
-    - nn2
-  register: nn_precheck
-  failed_when: "'NameNode' not in nn_precheck.stdout"
+- name: Xac dinh node active hien tai
+  command: ssh nn1 "sudo /opt/hadoop/bin/hdfs haadmin -getAllServiceState"
+  register: node_active_hien_tai
+  changed_when: false
+  failed_when: false
 
-- debug: var=nn_precheck.results
+- name: Tim dong co chu active
+  set_fact:
+    active_line: "{{ node_active_hien_tai.stdout_lines | select('search', 'active') | first }}"
 
-- name: "[Test1] Xác định NameNode active hiện tại"
-  command: /opt/hadoop/bin/hdfs haadmin -getAllServiceState
-  delegate_to: nn1
-  become: yes
-  register: baseline_state
+- name: Tach ten node tu dong do
+  set_fact:
+    active_node: "{{ active_line.split(':')[0] }}"
 
-- debug: var=baseline_state.stdout_lines
+- debug:
+    msg: "Node dang active la: {{ active_node }}"
 
-- name: "[Test1] Dừng NameNode trên nn1 (giả lập active die)"
-  command: /opt/hadoop/bin/hdfs --daemon stop namenode
-  delegate_to: nn1
-  become: yes
+- name: Tim dong co chu standby
+  set_fact:
+    standby_line: "{{ node_active_hien_tai.stdout_lines | select('search', 'standby') | first }}"
 
-- name: "[Test1] Đợi failover"
-  pause:
-    seconds: 15
+- name: Tach ten node tu dong do
+  set_fact:
+    standby_node: "{{ standby_line.split(':')[0] }}"
 
-- name: "[Test1] Kiểm tra trạng thái sau failover (trên nn2)"
-  command: /opt/hadoop/bin/hdfs haadmin -getAllServiceState
-  delegate_to: nn2
-  become: yes
-  register: after_state
+- debug:
+    msg: "Node dang standby la: {{ standby_node }}"
 
-- debug: var=after_state.stdout_lines
+- name: Dung NameNode dang active
+  command: ssh {{ active_node }} "sudo /opt/hadoop/bin/hdfs --daemon stop namenode"
 
-- name: "[Test1] Kiểm tra HDFS vẫn truy cập được"
-  command: /opt/hadoop/bin/hdfs dfs -ls /
-  delegate_to: nn2
-  become: yes
+- name: Kiem tra failover - retry 3 lan, moi lan cach 5 giay
+  command: ssh {{ standby_node }} "sudo /opt/hadoop/bin/hdfs haadmin -getAllServiceState"
+  register: failover_check
+  until: "'active' in failover_check.stdout"
+  retries: 3
+  delay: 5
+  changed_when: false
+
+- debug:
+    var: failover_check.stdout_lines
+
+- name: Kiem tra HDFS van truy cap duoc (goi vao node vua len active)
+  command: ssh {{ standby_node }} "sudo /opt/hadoop/bin/hdfs dfs -ls /"
   register: hdfs_ls
+  changed_when: false
 
-- debug: var=hdfs_ls.stdout_lines
-
-- name: "[Test1] Phục hồi - khởi động lại NameNode nn1"
-  command: /opt/hadoop/bin/hdfs --daemon start namenode
-  delegate_to: nn1
-  become: yes
-
-- name: "[Test1] Đợi nn1 quay lại standby"
-  pause:
-    seconds: 10
-
-- name: "[Test1] Xác nhận trạng thái cuối cùng"
-  command: /opt/hadoop/bin/hdfs haadmin -getAllServiceState
-  delegate_to: nn1
-  become: yes
-  register: final_state
-
-- debug: var=final_state.stdout_lines
+- debug:
+    var: hdfs_ls.stdout_lines
