@@ -1,34 +1,63 @@
 ---
-- name: "[Test3] Dừng JournalNode trên jn1"
-  command: /opt/hadoop/bin/hdfs --daemon stop journalnode
-  delegate_to: jn1
-  become: yes
+- name: Dung 1 jn
+  shell: |
+    ssh jn1 "sudo /opt/hadoop/bin/hdfs --daemon stop journalnode"
+    ssh jn1 "sudo jps"
+  register: dung_jn1
+  changed_when: false
+  failed_when: false
+  run_once: true
 
-- name: "[Test3] Thử tạo thư mục mới trên HDFS (kiểm tra quorum 2/3 còn đủ)"
-  command: /opt/hadoop/bin/hdfs dfs -mkdir -p /ha_test_jn
-  delegate_to: nn1
-  become: yes
-  register: mkdir_result
+- name: Hien thi trang thai cac jn sau khi dung 1 jn
+  debug:
+    var: dung_jn1.stdout_lines
+  run_once: true
 
-- debug: var=mkdir_result
+- name: Kiem tra HDFS van ghi/doc duoc khi mat 1 journalnode
+  shell: |
+    ssh nn1 "sudo /opt/hadoop/bin/hdfs dfs -rm -r -f /ha_test_jn 2>/dev/null; sudo /opt/hadoop/bin/hdfs dfs -mkdir -p /ha_test_jn"
+    ssh nn1 "sudo /opt/hadoop/bin/hdfs dfs -ls /"
+    ssh nn1 "sudo /opt/hadoop/bin/hdfs haadmin -getAllServiceState"
+  register: kiem_tra_sau_khi_dung_jn
+  changed_when: false
+  failed_when: false
+  retries: 3
+  delay: 5
+  until: kiem_tra_sau_khi_dung_jn.rc == 0
+  run_once: true
 
-- name: "[Test3] Kiểm tra HDFS vẫn liệt kê được"
-  command: /opt/hadoop/bin/hdfs dfs -ls /
-  delegate_to: nn1
-  become: yes
-  register: ls_result
+- name: Hien thi ket qua kiem tra
+  debug:
+    var: kiem_tra_sau_khi_dung_jn.stdout_lines
+  run_once: true
 
-- debug: var=ls_result.stdout_lines
+- name: Xac nhan mkdir thanh cong (quorum con du 2/3 journalnode)
+  assert:
+    that:
+      - "'ha_test_jn' in kiem_tra_sau_khi_dung_jn.stdout"
+    fail_msg: "Mat quorum JournalNode! Cluster khong the ghi du lieu khi mat 1/3 JournalNode."
+    success_msg: "Quorum JournalNode van hoat dong binh thuong khi mat 1 node."
+  run_once: true
 
-- name: "[Test3] Kiểm tra trạng thái HA vẫn ổn"
-  command: /opt/hadoop/bin/hdfs haadmin -getAllServiceState
-  delegate_to: nn1
-  become: yes
-  register: ha_state
+- name: Khoi dong lai jn1
+  shell: |
+    ssh jn1 "sudo /opt/hadoop/bin/hdfs --daemon start journalnode"
+    ssh jn1 "sudo jps | grep JournalNode"
+  register: khoi_dong_lai_jn1
+  changed_when: false
+  failed_when: false
+  retries: 5
+  delay: 3
+  until: "'JournalNode' in khoi_dong_lai_jn1.stdout"
+  run_once: true
 
-- debug: var=ha_state.stdout_lines
+- name: Hien thi ket qua khoi dong lai jn1
+  debug:
+    var: khoi_dong_lai_jn1.stdout_lines
+  run_once: true
 
-- name: "[Test3] Phục hồi JournalNode jn1"
-  command: /opt/hadoop/bin/hdfs --daemon start journalnode
-  delegate_to: jn1
-  become: yes
+- name: Don dep thu muc test
+  shell: ssh nn1 "sudo /opt/hadoop/bin/hdfs dfs -rm -r -f /ha_test_jn"
+  changed_when: false
+  failed_when: false
+  run_once: true

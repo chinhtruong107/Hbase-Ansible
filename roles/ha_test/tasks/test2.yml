@@ -1,38 +1,176 @@
 ---
-- name: "[Test2] Kiểm tra ZKFC đang chạy trên nn1"
-  shell: jps | grep DFSZKFailoverController
-  delegate_to: nn1
-  become: yes
-  register: zkfc_before
+- name: Kiem tra process ZKFC truoc test
+  shell: >
+    ssh {{ item }} "sudo jps | grep -w DFSZKFailoverController"
+  loop:
+    - nn1
+    - nn2
+  register: process_ZKFC_truoc_test
+  changed_when: false
+  failed_when: false
+  run_once: true
 
-- debug: var=zkfc_before.stdout_lines
+- name: Debug ZKFC truoc test
+  debug:
+    msg: >-
+      {{ item.item }}:
+      {{
+        item.stdout
+        if item.stdout | length > 0
+        else 'Khong tim thay DFSZKFailoverController'
+      }}
+  loop: "{{ process_ZKFC_truoc_test.results }}"
+  loop_control:
+    label: "{{ item.item }}"
+  run_once: true
 
-- name: "[Test2] Dừng ZKFC trên nn1"
-  command: /opt/hadoop/bin/hdfs --daemon stop zkfc
-  delegate_to: nn1
-  become: yes
+- name: Chan test neu thieu ZKFC o node nao do
+  assert:
+    that:
+      - "'DFSZKFailoverController' in item.stdout"
+    fail_msg: "ZKFC khong chay tren {{ item.item }}, dung test lai."
+    success_msg: "ZKFC dang chay day du tren {{ item.item }}"
+  loop: "{{ process_ZKFC_truoc_test.results }}"
+  loop_control:
+    label: "{{ item.item }}"
+  run_once: true
 
-- name: "[Test2] Đợi failover"
-  pause:
-    seconds: 15
+- name: Xac dinh trang thai NameNode hien tai
+  command: >
+    ssh nn1
+    "sudo /opt/hadoop/bin/hdfs haadmin -getAllServiceState"
+  register: node_active_hien_tai
+  changed_when: false
+  run_once: true
 
-- name: "[Test2] Kiểm tra trạng thái NameNode sau khi mất ZKFC"
-  command: /opt/hadoop/bin/hdfs haadmin -getAllServiceState
-  delegate_to: nn2
-  become: yes
-  register: state_after_zkfc_down
+- name: Hien thi trang thai NameNode
+  debug:
+    var: node_active_hien_tai.stdout_lines
+  run_once: true
 
-- debug: var=state_after_zkfc_down.stdout_lines
+- name: Tim dong active
+  set_fact:
+    active_line: "{{ node_active_hien_tai.stdout_lines | select('search', 'active\\s*$') | list | first | default('') }}"
+  run_once: true
 
-- name: "[Test2] Phục hồi ZKFC trên nn1"
-  command: /opt/hadoop/bin/hdfs --daemon start zkfc
-  delegate_to: nn1
-  become: yes
+- name: Tim dong standby
+  set_fact:
+    standby_line: "{{ node_active_hien_tai.stdout_lines | select('search', 'standby\\s*$') | list | first | default('') }}"
+  run_once: true
 
-- name: "[Test2] Xác nhận ZKFC đã chạy lại"
-  shell: jps | grep DFSZKFailoverController
-  delegate_to: nn1
-  become: yes
-  register: zkfc_after
+- name: Kiem tra co tim thay active va standby
+  assert:
+    that:
+      - active_line | length > 0
+      - standby_line | length > 0
+    fail_msg: >-
+      Khong xac dinh duoc NameNode active va standby.
+      Ket qua: {{ node_active_hien_tai.stdout }}
+    success_msg: "Da xac dinh duoc NameNode active va standby"
+  run_once: true
 
-- debug: var=zkfc_after.stdout_lines
+- name: Tach ten active node va standby node
+  set_fact:
+    active_node: "{{ active_line.split()[0].split(':')[0] }}"
+    standby_node: "{{ standby_line.split()[0].split(':')[0] }}"
+  run_once: true
+
+- name: Hien thi node active va standby
+  debug:
+    msg:
+      - "Node dang active: {{ active_node }}"
+      - "Node dang standby: {{ standby_node }}"
+  run_once: true
+
+- name: Test failover khi dung ZKFC tren active node
+  block:
+
+    - name: Dung ZKFC tren active node
+      command: >
+        ssh {{ active_node }}
+        "sudo /opt/hadoop/bin/hdfs --daemon stop zkfc"
+      failed_when: false
+      run_once: true
+
+    - name: Cho standby node chuyen thanh active
+      command: >
+        ssh {{ standby_node }}
+        "sudo /opt/hadoop/bin/hdfs haadmin -getAllServiceState"
+      register: trang_thai_sau_khi_dung
+      changed_when: false
+      retries: 12
+      delay: 5
+      until: >
+        (
+          trang_thai_sau_khi_dung.stdout_lines
+          | select(
+              'search',
+              '^' ~ standby_node ~ ':[0-9]+\\s+active\\s*$'
+            )
+          | list
+          | length
+        ) > 0
+      run_once: true
+
+    - name: Kiem tra HDFS van truy cap duoc sau failover
+      command: >
+        ssh {{ standby_node }}
+        "sudo /opt/hadoop/bin/hdfs dfs -ls /"
+      register: hdfs_ls_sau_failover
+      changed_when: false
+      retries: 3
+      delay: 5
+      until: hdfs_ls_sau_failover.rc == 0
+      run_once: true
+
+    - name: Hien thi ket qua failover
+      debug:
+        msg:
+          - "Node active cu: {{ active_node }}"
+          - "Node active moi: {{ standby_node }}"
+          - "Trang thai hien tai: {{ trang_thai_sau_khi_dung.stdout_lines }}"
+          - "HDFS ls: {{ hdfs_ls_sau_failover.stdout_lines }}"
+      run_once: true
+
+  always:
+
+    - name: Khoi dong lai ZKFC tren node cu
+      command: >
+        ssh {{ active_node }}
+        "sudo /opt/hadoop/bin/hdfs --daemon start zkfc"
+      register: khoi_dong_lai_zkfc
+      failed_when: false
+      run_once: true
+
+    - name: Cho ZKFC tren node cu khoi dong lai
+      shell: >
+        ssh {{ active_node }}
+        "sudo jps | grep -w DFSZKFailoverController"
+      register: check_zkfc_sau_phuc_hoi
+      changed_when: false
+      failed_when: false
+      retries: 10
+      delay: 3
+      until: check_zkfc_sau_phuc_hoi.rc == 0
+      run_once: true
+
+    - name: Hien thi ZKFC sau phuc hoi
+      debug:
+        msg: >-
+          ZKFC tren {{ active_node }} da duoc phuc hoi:
+          {{ check_zkfc_sau_phuc_hoi.stdout }}
+      run_once: true
+
+    - name: Xac nhan trang thai HA on dinh sau cung
+      command: >
+        ssh nn1
+        "sudo /opt/hadoop/bin/hdfs haadmin -getAllServiceState"
+      register: final_ha_state
+      changed_when: false
+      failed_when: false
+      run_once: true
+
+    - name: Hien thi trang thai HA cuoi cung
+      debug:
+        var: final_ha_state.stdout_lines
+      run_once: true

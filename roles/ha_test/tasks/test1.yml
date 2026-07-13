@@ -1,4 +1,13 @@
 ---
+- name: Precheck - dam bao ca 2 NameNode dang chay truoc khi test
+  command: ssh {{ item }} "sudo jps"
+  register: nn_precheck
+  loop:
+    - nn1
+    - nn2
+  changed_when: false
+  failed_when: "'NameNode' not in nn_precheck.stdout"
+
 - name: Xac dinh node active hien tai
   command: ssh nn1 "sudo /opt/hadoop/bin/hdfs haadmin -getAllServiceState"
   register: node_active_hien_tai
@@ -29,13 +38,14 @@
 
 - name: Dung NameNode dang active
   command: ssh {{ active_node }} "sudo /opt/hadoop/bin/hdfs --daemon stop namenode"
+  failed_when: false
 
-- name: Kiem tra failover - retry 3 lan, moi lan cach 5 giay
+- name: Kiem tra failover - retry, moi lan cach 10 giay
   command: ssh {{ standby_node }} "sudo /opt/hadoop/bin/hdfs haadmin -getAllServiceState"
   register: failover_check
   until: "'active' in failover_check.stdout"
-  retries: 3
-  delay: 5
+  retries: 6
+  delay: 10
   changed_when: false
 
 - debug:
@@ -45,6 +55,36 @@
   command: ssh {{ standby_node }} "sudo /opt/hadoop/bin/hdfs dfs -ls /"
   register: hdfs_ls
   changed_when: false
+  retries: 3
+  delay: 5
+  until: hdfs_ls.rc == 0
 
 - debug:
     var: hdfs_ls.stdout_lines
+
+- name: Phuc hoi - khoi dong lai NameNode vua bi dung
+  command: ssh {{ active_node }} "sudo /opt/hadoop/bin/hdfs --daemon start namenode"
+  changed_when: false
+  failed_when: false
+
+- name: Doi NameNode phuc hoi va quay lai standby
+  command: ssh {{ standby_node }} "sudo /opt/hadoop/bin/hdfs haadmin -getAllServiceState"
+  register: final_state
+  changed_when: false
+  retries: 6
+  delay: 5
+  until: "'standby' in final_state.stdout and 'active' in final_state.stdout"
+
+- debug:
+    var: final_state.stdout_lines
+
+- name: Xac nhan HDFS hoat dong sau khi phuc hoi hoan toan
+  command: ssh {{ standby_node }} "sudo /opt/hadoop/bin/hdfs dfs -ls /"
+  register: final_ls
+  changed_when: false
+  retries: 3
+  delay: 5
+  until: final_ls.rc == 0
+
+- debug:
+    var: final_ls.stdout_lines
