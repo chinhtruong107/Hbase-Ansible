@@ -44,7 +44,7 @@
   command: ssh {{ standby_node }} "sudo /opt/hadoop/bin/hdfs haadmin -getAllServiceState"
   register: failover_check
   until: "'active' in failover_check.stdout"
-  retries: 10
+  retries: 15
   delay: 10
   changed_when: false
 
