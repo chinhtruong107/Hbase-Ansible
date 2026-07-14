@@ -1,6 +1,0 @@
----
-- name: HDFS + HBase HA Test Suite
-  hosts: localhost
-  gather_facts: no
-  roles:
-    - ha_test
