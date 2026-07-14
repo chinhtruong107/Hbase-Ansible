@@ -27,29 +27,37 @@
   changed_when: false
   run_once: true
 
-- name: Hien thi danh sach table
+- name: Loc ra ten table that su (bo header, bo dong thua)
+  set_fact:
+    real_tables: >-
+      {{
+        hbase_table_list.stdout_lines
+        | reject('equalto', 'TABLE')
+        | select('match', '^[a-zA-Z0-9_.:-]+$')
+        | reject('search', 'Took|hbase:|row')
+        | list
+      }}
+  run_once: true
+
+- name: Hien thi danh sach table that su
   debug:
-    var: hbase_table_list.stdout_lines
+    var: real_tables
+  run_once: true
+
+- name: Doi HMaster san sang truoc khi tao snapshot
+  command: ssh hm1 "/opt/hbase/bin/hbase shell -n <<< \"status\""
+  register: hbase_ready_check
+  changed_when: false
+  retries: 5
+  delay: 5
+  until: hbase_ready_check.rc == 0
   run_once: true
 
 - name: Tao snapshot cho tung table HBase
   shell: |
     ssh hm1 "/opt/hbase/bin/hbase shell -n <<< \"snapshot '{{ item }}', '{{ item }}_snap_{{ backup_ts }}'\""
-  loop: "{{ hbase_table_list.stdout_lines | select('match', '^[a-zA-Z0-9_.:-]+$') | reject('equalto', '') | list }}"
-  when: hbase_table_list.stdout_lines | length > 0
+  loop: "{{ real_tables }}"
+  when: real_tables | length > 0
   register: snapshot_result
   changed_when: false
-  run_once: true
-
-- name: Hien thi ket qua tao snapshot
-  debug:
-    var: snapshot_result.results | map(attribute='stdout') | list
-  run_once: true
-
-- name: Hien thi tong ket backup
-  debug:
-    msg:
-      - "Backup hoan tat luc: {{ backup_ts }}"
-      - "Fsimage backup tai: /tmp/fsimage_backup_{{ backup_ts }} (tren nn1)"
-      - "HBase snapshot da tao cho cac table: {{ hbase_table_list.stdout_lines }}"
   run_once: true
