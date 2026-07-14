@@ -1,0 +1,78 @@
+---
+- name: Kiem tra da truyen bien snapshot_name chua
+  assert:
+    that:
+      - snapshot_name is defined
+      - table_name is defined
+    fail_msg: >-
+      Can truyen bien khi chay: -e "table_name=ten_table snapshot_name=ten_snapshot"
+      Vi du: ansible-playbook restore.yml -e "table_name=test_table snapshot_name=test_table_snap_20260714_060000"
+  run_once: true
+
+- name: Kiem tra snapshot co ton tai khong
+  command: ssh hm1 "/opt/hbase/bin/hbase shell -n <<< \"list_snapshots\""
+  register: list_snapshots
+  changed_when: false
+  run_once: true
+
+- name: Xac nhan snapshot ton tai
+  assert:
+    that:
+      - snapshot_name in list_snapshots.stdout
+    fail_msg: "Khong tim thay snapshot {{ snapshot_name }}. Danh sach hien co: {{ list_snapshots.stdout_lines }}"
+  run_once: true
+
+- name: Tat table truoc khi restore (bat buoc voi HBase)
+  shell: >
+    ssh hm1
+    "/opt/hbase/bin/hbase shell -n <<< \"disable '{{ table_name }}'\""
+  register: disable_result
+  changed_when: false
+  failed_when: false
+  run_once: true
+
+- name: Hien thi ket qua disable table
+  debug:
+    var: disable_result.stdout_lines
+  run_once: true
+
+- name: Restore snapshot
+  command: >
+    ssh hm1
+    "/opt/hbase/bin/hbase shell -n <<< \"restore_snapshot '{{ snapshot_name }}'\""
+  register: restore_result
+  changed_when: false
+  run_once: true
+
+- name: Hien thi ket qua restore
+  debug:
+    var: restore_result.stdout_lines
+  run_once: true
+
+- name: Bat lai table sau khi restore
+  command: >
+    ssh hm1
+    "/opt/hbase/bin/hbase shell -n <<< \"enable '{{ table_name }}'\""
+  register: enable_result
+  changed_when: false
+  run_once: true
+
+- name: Hien thi ket qua enable table
+  debug:
+    var: enable_result.stdout_lines
+  run_once: true
+
+- name: Kiem tra table hoat dong sau restore
+  command: >
+    ssh hm1
+    "/opt/hbase/bin/hbase shell -n <<< \"count '{{ table_name }}'\""
+  register: count_result
+  changed_when: false
+  run_once: true
+
+- name: Hien thi ket qua kiem tra
+  debug:
+    msg:
+      - "Da restore table {{ table_name }} tu snapshot {{ snapshot_name }}"
+      - "Ket qua count: {{ count_result.stdout_lines }}"
+  run_once: true

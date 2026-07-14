@@ -1,0 +1,6 @@
+---
+- name: HBase Restore
+  hosts: localhost
+  gather_facts: no
+  roles:
+    - restore

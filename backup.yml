@@ -1,0 +1,6 @@
+---
+- name: HBase + HDFS Backup
+  hosts: localhost
+  gather_facts: no
+  roles:
+    - backup
