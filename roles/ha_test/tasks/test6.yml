@@ -1,8 +1,8 @@
 ---
 - name: Lay so DataNode truoc test
   shell: >
-    ssh nn01
-    "/opt/hadoop/bin/hdfs dfsadmin -report |
+    ssh nn1
+    "sudo /opt/hadoop/bin/hdfs dfsadmin -report |
     awk '/Live datanodes/ {
       gsub(/[():]/, \"\", \$3);
       print \$3
@@ -16,39 +16,44 @@
     msg: "So Live DataNode truoc test: {{ datanode_truoc_test.stdout }}"
   run_once: true
 
-- name: Kiem tra RegionServer tren rs01 truoc test
-  shell: >
-    ssh rs01 "jps | grep -w HRegionServer"
+- name: Kiem tra RegionServer tren rs1 truoc test
+  shell: ssh rs1 "sudo jps | grep -w HRegionServer"
   register: regionserver_truoc_test
   changed_when: false
+  failed_when: false
   run_once: true
 
-- name: Kiem tra DataNode tren rs01 truoc test
-  shell: >
-    ssh rs01 "jps | grep -w DataNode"
+- name: Kiem tra DataNode tren rs1 truoc test
+  shell: ssh rs1 "sudo jps | grep -w DataNode"
   register: process_datanode_truoc_test
   changed_when: false
+  failed_when: false
   run_once: true
 
-- name: Test khi mat rs01
+- name: Chan test neu rs1 thieu process truoc khi bat dau
+  assert:
+    that:
+      - "'HRegionServer' in regionserver_truoc_test.stdout"
+      - "'DataNode' in process_datanode_truoc_test.stdout"
+    fail_msg: "rs1 dang thieu RegionServer hoac DataNode truoc khi test, dung lai."
+    success_msg: "rs1 co du RegionServer va DataNode, san sang test."
+  run_once: true
+
+- name: Test khi mat rs1
   block:
 
-    - name: Dung RegionServer tren rs01
-      shell: >
-        ssh rs01
-        "source ~/.bashrc &&
-        hbase-daemon.sh stop regionserver"
+    - name: Dung RegionServer tren rs1
+      shell: ssh rs1 "sudo /opt/hbase/bin/hbase-daemon.sh stop regionserver"
+      failed_when: false
       run_once: true
 
-    - name: Dung DataNode tren rs01
-      shell: >
-        ssh rs01
-        "/opt/hadoop/bin/hdfs --daemon stop datanode"
+    - name: Dung DataNode tren rs1
+      shell: ssh rs1 "sudo /opt/hadoop/bin/hdfs --daemon stop datanode"
+      failed_when: false
       run_once: true
 
     - name: Kiem tra RegionServer da dung
-      shell: >
-        ssh rs01 "jps | grep -w HRegionServer"
+      shell: ssh rs1 "sudo jps | grep -w HRegionServer"
       register: regionserver_sau_stop
       changed_when: false
       failed_when: false
@@ -58,8 +63,7 @@
       run_once: true
 
     - name: Kiem tra DataNode da dung
-      shell: >
-        ssh rs01 "jps | grep -w DataNode"
+      shell: ssh rs1 "sudo jps | grep -w DataNode"
       register: datanode_sau_stop
       changed_when: false
       failed_when: false
@@ -68,16 +72,17 @@
       until: datanode_sau_stop.rc != 0
       run_once: true
 
-    - name: Kiem tra so Live DataNode sau khi dung rs01
+    - name: Kiem tra so Live DataNode sau khi dung rs1
       shell: >
-        ssh nn01
-        "/opt/hadoop/bin/hdfs dfsadmin -report |
+        ssh nn1
+        "sudo /opt/hadoop/bin/hdfs dfsadmin -report |
         awk '/Live datanodes/ {
           gsub(/[():]/, \"\", \$3);
           print \$3
         }'"
       register: datanode_sau_test
       changed_when: false
+      failed_when: false
       retries: 10
       delay: 5
       until: >
@@ -87,21 +92,17 @@
       run_once: true
 
     - name: Hien thi bao cao DataNode
-      shell: >
-        ssh nn01
-        "/opt/hadoop/bin/hdfs dfsadmin -report |
-        egrep 'Live datanodes|Hostname|Name:'"
+      shell: ssh nn1 "sudo /opt/hadoop/bin/hdfs dfsadmin -report | egrep 'Live datanodes|Hostname|Name:'"
       register: bao_cao_datanode
       changed_when: false
+      failed_when: false
       run_once: true
 
     - name: Kiem tra HBase van hoat dong
-      shell: >
-        ssh hm01
-        "source ~/.bashrc &&
-        echo \"status 'simple'\" | hbase shell -n"
+      shell: ssh hm1 "/opt/hbase/bin/hbase shell -n <<< \"status 'simple'\""
       register: trang_thai_hbase
       changed_when: false
+      failed_when: false
       retries: 10
       delay: 5
       until: trang_thai_hbase.rc == 0
@@ -112,61 +113,62 @@
         seconds: 30
       run_once: true
 
-    - name: Kiem tra lai trang thai HBase
-      shell: >
-        ssh hm01
-        "source ~/.bashrc &&
-        echo \"status 'simple'\" | hbase shell -n"
+    - name: Kiem tra lai trang thai HBase sau khi gan lai region
+      shell: ssh hm1 "/opt/hbase/bin/hbase shell -n <<< \"status 'simple'\""
       register: trang_thai_hbase_sau_khi_gan_lai
       changed_when: false
+      failed_when: false
+      retries: 5
+      delay: 5
+      until: trang_thai_hbase_sau_khi_gan_lai.rc == 0
+      run_once: true
+
+    - name: Xac nhan cluster van song khi mat 1 RegionServer/DataNode
+      assert:
+        that:
+          - (datanode_sau_test.stdout | int) == ((datanode_truoc_test.stdout | int) - 1)
+          - trang_thai_hbase_sau_khi_gan_lai.rc == 0
+        fail_msg: "Cluster khong on dinh khi mat rs1! Kiem tra lai."
+        success_msg: "Cluster van hoat dong binh thuong khi mat 1 RegionServer/DataNode."
       run_once: true
 
     - name: Hien thi ket qua test
       debug:
         msg:
-          - >-
-            Live DataNode truoc test:
-            {{ datanode_truoc_test.stdout }}
-          - >-
-            Live DataNode sau test:
-            {{ datanode_sau_test.stdout }}
+          - "Live DataNode truoc test: {{ datanode_truoc_test.stdout }}"
+          - "Live DataNode sau test: {{ datanode_sau_test.stdout }}"
           - "Bao cao DataNode: {{ bao_cao_datanode.stdout_lines }}"
           - "Trang thai HBase: {{ trang_thai_hbase_sau_khi_gan_lai.stdout_lines }}"
-          - "Cluster van hoat dong khi mat rs01"
+          - "Cluster van hoat dong khi mat rs1"
       run_once: true
 
   always:
 
-    - name: Khoi dong lai DataNode tren rs01
-      shell: >
-        ssh rs01
-        "/opt/hadoop/bin/hdfs --daemon start datanode"
+    - name: Khoi dong lai DataNode tren rs1
+      shell: ssh rs1 "sudo /opt/hadoop/bin/hdfs --daemon start datanode"
       failed_when: false
       run_once: true
 
-    - name: Khoi dong lai RegionServer tren rs01
-      shell: >
-        ssh rs01
-        "source ~/.bashrc &&
-        hbase-daemon.sh start regionserver"
+    - name: Khoi dong lai RegionServer tren rs1
+      shell: ssh rs1 "sudo /opt/hbase/bin/hbase-daemon.sh start regionserver"
       failed_when: false
       run_once: true
 
     - name: Kiem tra DataNode sau phuc hoi
-      shell: >
-        ssh rs01 "jps | grep -w DataNode"
+      shell: ssh rs1 "sudo jps | grep -w DataNode"
       register: datanode_sau_phuc_hoi
       changed_when: false
+      failed_when: false
       retries: 10
       delay: 5
       until: datanode_sau_phuc_hoi.rc == 0
       run_once: true
 
     - name: Kiem tra RegionServer sau phuc hoi
-      shell: >
-        ssh rs01 "jps | grep -w HRegionServer"
+      shell: ssh rs1 "sudo jps | grep -w HRegionServer"
       register: regionserver_sau_phuc_hoi
       changed_when: false
+      failed_when: false
       retries: 10
       delay: 5
       until: regionserver_sau_phuc_hoi.rc == 0
@@ -175,7 +177,7 @@
     - name: Hien thi ket qua phuc hoi
       debug:
         msg:
-          - "DataNode rs01: {{ datanode_sau_phuc_hoi.stdout }}"
-          - "RegionServer rs01: {{ regionserver_sau_phuc_hoi.stdout }}"
-          - "Da phuc hoi rs01 thanh cong"
+          - "DataNode rs1: {{ datanode_sau_phuc_hoi.stdout }}"
+          - "RegionServer rs1: {{ regionserver_sau_phuc_hoi.stdout }}"
+          - "Da phuc hoi rs1 thanh cong"
       run_once: true
