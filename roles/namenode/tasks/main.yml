@@ -1,8 +1,14 @@
 ---
+- name: Kiem tra Hadoop da cai chua
+  stat:
+    path: /opt/hadoop/bin/hadoop
+  register: hadoop_installed
+
 - name: Download Hadoop
   get_url:
     url: https://downloads.apache.org/hadoop/common/hadoop-3.3.6/hadoop-3.3.6.tar.gz
     dest: /tmp/hadoop.tar.gz
+  when: not hadoop_installed.stat.exists
 
 - name: Extract Hadoop
   unarchive:
