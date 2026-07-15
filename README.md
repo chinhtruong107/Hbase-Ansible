@@ -1,177 +1,276 @@
-# HBase + HDFS HA Cluster — Ansible Automation
+# HBase + HDFS HA Cluster with Ansible
 
-Ansible playbooks to deploy a fully highly-available **HDFS** and **HBase** cluster on AWS EC2, backed by an external **ZooKeeper** ensemble. Includes an automated **HA test suite** to validate failover behavior after deployment.
+This repository contains Ansible playbooks for deploying a highly available **HDFS** cluster and a distributed **HBase** cluster across multiple Ubuntu nodes. ZooKeeper is used for coordination and automatic failover, JournalNode stores shared edits for NameNode HA, and HBase stores its data on HDFS.
 
-## Architecture
+## Cluster Architecture
 
-| Component | Nodes | Role |
-|---|---|---|
-| ZooKeeper | 3 nodes (`zk1-zk3`) | Coordination service, used by HDFS ZKFC and HBase |
-| NameNode | 2 nodes (`nn1`, `nn2`) | HDFS HA (Active/Standby) via QJM + automatic failover (ZKFC) |
-| JournalNode | 3 nodes (`jn1-jn3`) | Shared edits storage for NameNode HA |
-| DataNode | 3 nodes (`dn1-dn3`) | HDFS data storage |
-| HMaster | 2 nodes (`hm1`, `hm2`) | HBase Master (Active/Backup) |
-| RegionServer | 3 nodes (`rs1-rs3`) | HBase RegionServer |
+| Node group | Count | Host examples | Purpose |
+|---|---:|---|---|
+| ZooKeeper | 3 | `zk1`, `zk2`, `zk3` | Quorum for HDFS ZKFC and HBase |
+| NameNode | 2 | `nn1`, `nn2` | HDFS HA Active/Standby pair |
+| JournalNode | 3 | `jn1`, `jn2`, `jn3` | Shared edit log storage for NameNode HA |
+| DataNode | 3 | `dn1`, `dn2`, `dn3` | HDFS data storage |
+| HBase Master | 2 | `hm1`, `hm2` | HBase active/backup masters |
+| HBase RegionServer | 3 | `rs1`, `rs2`, `rs3` | HBase region serving |
 
-**Total: 16 EC2 instances.**
+Total: **16 nodes**.
 
-Software versions:
-- Ubuntu 22.04/24.04
-- Hadoop 3.3.6
-- HBase 2.5.15 (hadoop3 build)
-- ZooKeeper 3.8.6
+## Installed Versions
 
-## Repository Structure
+| Component | Version |
+|---|---|
+| Java | OpenJDK 11 |
+| Hadoop | 3.3.6 |
+| HBase | 2.5.15, `hadoop3` build |
+| ZooKeeper | 3.8.6 |
 
-```
+Software is installed under `/opt`:
+
+- Hadoop: `/opt/hadoop`
+- HBase: `/opt/hbase`
+- ZooKeeper: `/opt/zookeeper`
+
+Runtime data is stored under `/data`, including:
+
+- ZooKeeper data: `/data/zookeeper`
+- NameNode data: `/data/hadoop/namenode`
+- DataNode data: `/data/hadoop/datanode`
+- JournalNode data: `/data/hadoop/journalnode`
+
+## Repository Layout
+
+```text
 Hbase-Ansible/
 ├── inventory/
-│   └── inventory.ini          # Hosts, groups, and connection vars
+│   └── inventory.ini          # Cluster hosts and SSH connection variables
 ├── group_vars/
-│   └── all.yml                # Shared vars (e.g. /etc/hosts entries)
+│   └── all.yml                # Shared variables, SSH key path, /etc/hosts entries
 ├── roles/
-│   ├── common/                # Java, hadoop user, /etc/hosts, swap
-│   ├── zookeeper/              # ZooKeeper ensemble
-│   ├── journalnode/             # HDFS JournalNode
-│   ├── namenode/               # HDFS NameNode HA + ZKFC
-│   ├── datanode/               # HDFS DataNode
-│   ├── hbase_master/            # HBase HMaster (active/backup)
-│   ├── hbase_regionserver/      # HBase RegionServer
-│   └── ha_test/                # Automated HA failure/failover test suite
-├── site.yml                    # Main deployment playbook
-└── ha_test.yml                 # HA test suite playbook
+│   ├── common/                # Java, hadoop user, swap, /etc/hosts
+│   ├── zookeeper/             # ZooKeeper installation and startup
+│   ├── journalnode/           # Hadoop installation and JournalNode startup
+│   ├── namenode/              # Hadoop installation, NameNode/ZKFC format, HA startup
+│   ├── datanode/              # Hadoop installation and DataNode startup
+│   ├── hbase_master/          # HBase installation and HMaster startup
+│   ├── hbase_regionserver/    # HBase installation and RegionServer startup
+│   ├── backup/                # HDFS fsimage backup and HBase snapshot creation
+│   └── restore/               # HBase table restore from snapshot
+├── site.yml                   # Main cluster deployment playbook
+├── backup.yml                 # Backup playbook
+└── restore.yml                # HBase snapshot restore playbook
 ```
 
 ## Prerequisites
 
-- 16 EC2 instances (see sizing recommendation below), all in the same VPC/subnet, reachable from an Ansible control node.
-- A shared Security Group with a self-referencing "allow all" rule (simplest option for a lab/test cluster) plus SSH (22) open from the control node.
-- One SSH key pair (`.pem`) present on the control node, used to reach every managed node.
-- Ansible installed on the control node.
+- Ansible installed on the control machine.
+- 16 Ubuntu nodes reachable over SSH from the control machine.
+- SSH user: `ubuntu`.
+- A readable SSH private key, for example `~/.ssh/hbase.pem`.
+- Nodes should be in the same VPC/subnet, or at least be able to reach each other by the hostnames defined in `/etc/hosts`.
+- Security groups or firewalls must allow internal cluster communication.
 
-### Recommended instance sizing
+Important ports:
 
-| Node type | Instance type | Reason |
-|---|---|---|
-| ZooKeeper | t3.small | Needs to stay stable — quorum leader election |
-| NameNode | t3.medium | Manages cluster metadata, higher RAM |
-| HMaster | t3.medium | Manages cluster metadata, higher RAM |
-| JournalNode | t2.micro | Lightweight, only writes shared edit logs |
-| DataNode | t3.small | Handles real read/write I/O |
-| RegionServer | t3.small | Handles real read/write I/O |
+| Service | Port |
+|---|---:|
+| SSH | 22 |
+| ZooKeeper client | 2181 |
+| NameNode RPC | 8020 |
+| NameNode Web UI | 9870 |
+| JournalNode | 8485 |
+| DataNode Web UI | 9864 |
+| HBase Master Web UI | 16010 |
+| HBase RegionServer Web UI | 16030 |
 
-> Disk: at least 20 GB per node is recommended. Hadoop refuses to write once free space drops below its safety margin, even if the disk isn't technically full.
+## Configure the Inventory
 
-## Setup
-
-### 1. Configure the inventory
-
-Edit `inventory/inventory.ini` with your real instance IPs:
+Edit [inventory/inventory.ini](inventory/inventory.ini) with the real node IP addresses:
 
 ```ini
 [zookeeper]
-zk1 ansible_host=<ip>
-zk2 ansible_host=<ip>
-zk3 ansible_host=<ip>
+zk1 ansible_host=172.31.34.199 zk_id=1
+zk2 ansible_host=172.31.45.85 zk_id=2
+zk3 ansible_host=172.31.41.44 zk_id=3
 
 [namenode]
-nn1 ansible_host=<ip> is_first_namenode=true
-nn2 ansible_host=<ip> is_first_namenode=false
+nn1 ansible_host=172.31.37.50 is_first_namenode=true
+nn2 ansible_host=172.31.35.247 is_first_namenode=false
 
 [journalnode]
-jn1 ansible_host=<ip>
-jn2 ansible_host=<ip>
-jn3 ansible_host=<ip>
+jn1 ansible_host=172.31.23.79
+jn2 ansible_host=172.31.22.210
+jn3 ansible_host=172.31.17.216
 
 [datanode]
-dn1 ansible_host=<ip>
-dn2 ansible_host=<ip>
-dn3 ansible_host=<ip>
+dn1 ansible_host=172.31.35.51
+dn2 ansible_host=172.31.34.67
+dn3 ansible_host=172.31.34.197
 
 [hbase_master]
-hm1 ansible_host=<ip>
-hm2 ansible_host=<ip>
+hm1 ansible_host=172.31.37.245
+hm2 ansible_host=172.31.39.222
 
 [hbase_regionserver]
-rs1 ansible_host=<ip>
-rs2 ansible_host=<ip>
-rs3 ansible_host=<ip>
+rs1 ansible_host=172.31.34.150
+rs2 ansible_host=172.31.42.203
+rs3 ansible_host=172.31.42.236
 
 [all:vars]
 ansible_user=ubuntu
-ansible_ssh_private_key_file=~/.ssh/your-key.pem
+ansible_ssh_private_key_file=~/.ssh/hbase.pem
 ```
 
-### 2. Copy the SSH key to every node (if not baked into the AMI)
+Then update [group_vars/all.yml](group_vars/all.yml) so that `hosts_entries` matches the inventory. The `common` role writes these entries to `/etc/hosts` on every node.
+
+## Check Connectivity
+
+From the control machine:
 
 ```bash
-chmod 400 ~/.ssh/your-key.pem
+chmod 400 ~/.ssh/hbase.pem
+ansible -i inventory/inventory.ini all -m ping
 ```
 
-### 3. Deploy the cluster
+If a node is unreachable, check:
+
+- The IP address in the inventory.
+- The SSH private key path.
+- The SSH user.
+- Security group or firewall rules.
+- Private key file permissions.
+
+## Deploy the Cluster
+
+Run the main playbook:
 
 ```bash
 ansible-playbook -i inventory/inventory.ini site.yml
 ```
 
-Deployment order (handled automatically by `site.yml`):
-1. `common` — Java, hadoop user, `/etc/hosts`, swap
-2. `zookeeper` — ensemble bootstrap
-3. `journalnode` — Hadoop install + JournalNode start
-4. `namenode` — Hadoop install, format (first node only), NameNode + ZKFC start
-5. `datanode` — Hadoop install + DataNode start
-6. `hbase_master` — HBase install + HMaster start
-7. `hbase_regionserver` — HBase install + RegionServer start
+Deployment order in `site.yml`:
 
-### 4. Verify the cluster
+1. `common`: installs Java, creates the `hadoop` user, disables swap, and updates `/etc/hosts`.
+2. `zookeeper`: installs and starts the ZooKeeper ensemble.
+3. `journalnode`: installs Hadoop and starts JournalNode.
+4. `namenode`: installs Hadoop, formats the first NameNode on `nn1`, formats ZKFC, and starts NameNode/ZKFC.
+5. `datanode`: installs Hadoop and starts DataNode.
+6. `hbase_master`: installs HBase and starts HMaster.
+7. `hbase_regionserver`: installs HBase and starts RegionServer.
 
-```bash
-# HDFS HA state (expect 1 active, 1 standby)
-ssh -i ~/.ssh/your-key.pem ubuntu@<nn1-ip> "sudo /opt/hadoop/bin/hdfs haadmin -getAllServiceState"
+## Verify the Deployment
 
-# DataNodes registered (expect 3)
-ssh -i ~/.ssh/your-key.pem ubuntu@<nn1-ip> "sudo /opt/hadoop/bin/hdfs dfsadmin -report"
-
-# HBase cluster status (expect: 1 active master, 1 backup masters, 3 servers, 0 dead)
-ssh -i ~/.ssh/your-key.pem ubuntu@<hm1-ip> "/opt/hbase/bin/hbase shell <<< 'status'"
-```
-
-## HA Test Suite
-
-The `ha_test` role automates the manual HA validation test cases (based on the internal HA test document), covering:
-
-| Tag | Test case | What it validates |
-|---|---|---|
-| `test1` | NameNode failover | Standby NameNode takes over when Active is stopped |
-| `test2` | ZKFC failover | ZooKeeper Failover Controller triggers automatic failover |
-| `test3` | JournalNode quorum | HDFS keeps working after losing 1 of 3 JournalNodes |
-| `test4` | ZooKeeper quorum | HDFS/HBase keep working after losing 1 of 3 ZooKeeper nodes |
-| `test5` | HMaster failover | Backup HMaster takes over when Active HMaster is stopped |
-| `test6` | RegionServer/DataNode failure | Cluster tolerates the loss of a single RegionServer/DataNode |
-
-Each test captures a baseline, injects the failure, checks the expected outcome, and restores the cluster to a healthy state before finishing.
-
-Run the full suite:
+Check HDFS HA state:
 
 ```bash
-ansible-playbook -i inventory/inventory.ini ha_test.yml
+ssh -i ~/.ssh/hbase.pem ubuntu@<nn1-ip> "sudo /opt/hadoop/bin/hdfs haadmin -getAllServiceState"
 ```
 
-Run a single test case:
+Expected result: one NameNode is `active`, and the other is `standby`.
+
+Check DataNodes:
 
 ```bash
-ansible-playbook -i inventory/inventory.ini ha_test.yml --tags test1
+ssh -i ~/.ssh/hbase.pem ubuntu@<nn1-ip> "sudo /opt/hadoop/bin/hdfs dfsadmin -report"
 ```
 
-> **Rules:** only fail one component at a time. Never stop both NameNodes, or 2+ JournalNodes, or 2+ ZooKeeper nodes simultaneously — this breaks quorum and the cluster will not recover automatically. Always restore the cluster to a healthy baseline before moving to the next test case.
+Check HDFS access:
 
-## Fencing Configuration Note
+```bash
+ssh -i ~/.ssh/hbase.pem ubuntu@<nn1-ip> "sudo /opt/hadoop/bin/hdfs dfs -ls /"
+```
 
-HDFS HA fencing (`dfs.ha.fencing.methods = sshfence`) requires a working passwordless SSH connection **between the NameNode hosts, as the same OS user that runs the NameNode process** (here: `root`, since Ansible tasks run with `become: yes`). Make sure `/root/.ssh/id_rsa` exists and is exchanged between `nn1` and `nn2`, or fencing will silently fail and the cluster will rely on Hadoop's fallback behavior instead of a real fence — which is not safe against split-brain in a real failure scenario (as opposed to a clean stop).
+Check HBase:
 
-## Known Gotchas
+```bash
+ssh -i ~/.ssh/hbase.pem ubuntu@<hm1-ip> "/opt/hbase/bin/hbase shell -n <<< 'status'"
+```
 
-- Apache mirrors (`downloads.apache.org`) only keep the last 1–2 patch releases of each project; pin download URLs to `archive.apache.org/dist/...` for a version that won't 404 on you later.
-- `hdfs namenode -format` and `hdfs zkfc -formatZK` prompt for confirmation if already formatted — use `-force` / `-nonInteractive` and treat exit code 2 (zkfc) as "already formatted, not an error" in automation.
-- Disk usage above ~90% will make DataNodes refuse writes even though `df` shows free space — this manifests as `could only be written to 0 of the 1 minReplication nodes`.
-- A NameNode/DataNode `clusterID` mismatch (usually from re-formatting the NameNode without wiping DataNode storage) will keep DataNodes from registering; wipe `/data/hadoop/datanode` on all DataNodes and restart them to fix it.
+Check running Java processes on each node:
+
+```bash
+jps
+```
+
+Expected processes by node type:
+
+- ZooKeeper: `QuorumPeerMain`
+- NameNode: `NameNode`, `DFSZKFailoverController`
+- JournalNode: `JournalNode`
+- DataNode: `DataNode`
+- HBase Master: `HMaster`
+- RegionServer: `HRegionServer`
+
+## Backup
+
+[backup.yml](backup.yml) runs on `localhost` and performs the following steps:
+
+- Creates `/backup/<timestamp>` on HDFS.
+- Fetches the HDFS fsimage from `nn1`.
+- Copies the fsimage to the control machine under `./backups/hdfs_metadata/`.
+- Lists HBase tables.
+- Creates a snapshot for each HBase table using the name format `<table>_snap_<timestamp>`.
+
+Create the local backup directory before running the playbook:
+
+```bash
+mkdir -p backups/hdfs_metadata
+```
+
+Run backup:
+
+```bash
+ansible-playbook -i inventory/inventory.ini backup.yml
+```
+
+List existing HBase snapshots:
+
+```bash
+ssh hm1 "/opt/hbase/bin/hbase shell -n <<< 'list_snapshots'"
+```
+
+## Restore an HBase Table
+
+[restore.yml](restore.yml) restores one table from an existing HBase snapshot. It requires two variables:
+
+- `table_name`: the table to restore.
+- `snapshot_name`: the snapshot to restore from.
+
+Example:
+
+```bash
+ansible-playbook -i inventory/inventory.ini restore.yml \
+  -e "table_name=test_table snapshot_name=test_table_snap_20260714_060000"
+```
+
+Restore flow:
+
+1. Check that the snapshot exists.
+2. Disable the table.
+3. Restore the snapshot.
+4. Enable the table again.
+5. Run `count` to verify the table after restore.
+
+## Operational Notes
+
+- Do not reformat NameNode while DataNodes still contain old data. This can cause a `clusterID` mismatch.
+- With 3 ZooKeeper nodes or 3 JournalNodes, do not stop more than one node at the same time if you need to preserve quorum.
+- Fencing currently uses `shell(true)` in `hdfs-site.xml`, which is suitable for lab/demo environments. Production should use real fencing, such as `sshfence`, to avoid split-brain.
+- `downloads.apache.org` may remove older releases. If a download URL returns 404, switch to `https://archive.apache.org/dist/...`.
+- If HDFS refuses writes even though disk space appears available, check DataNode reserved/free-space thresholds and actual disk usage.
+
+## Quick Commands
+
+```bash
+# Check SSH/Ansible connectivity
+ansible -i inventory/inventory.ini all -m ping
+
+# Deploy the full cluster
+ansible-playbook -i inventory/inventory.ini site.yml
+
+# Back up HDFS metadata and HBase snapshots
+ansible-playbook -i inventory/inventory.ini backup.yml
+
+# Restore one HBase table
+ansible-playbook -i inventory/inventory.ini restore.yml \
+  -e "table_name=<table> snapshot_name=<snapshot>"
+```
